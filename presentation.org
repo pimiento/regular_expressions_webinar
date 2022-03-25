@@ -347,6 +347,54 @@
   - (?<!...) :: Не должно совпасть слева (Негативная ретроспективная проверка).
   - (?=...) :: Должно совпасть справа (Позитивная опережающая проверка).
   - (?!...) :: Не должно совпасть справа (Негативная опережающая проверка).
+* Жадные квантификаторы
+  #+BEGIN_EXAMPLE
+  Задача: заменить буржуинские кавычки лапки
+  на отечественные кавычки ёлочки.
+  #+END_EXAMPLE
+* Задача решена
+  #+BEGIN_SRC python :exports both :results output :noweb strip-export
+    <<import_re>>
+    print(re.sub(
+        r'"(.+)"',
+        r"«\1»",
+        '"Идиот"'
+    ))
+  #+END_SRC
+
+  #+RESULTS:
+  : «Идиот»
+* Задача решена?
+  #+BEGIN_SRC python :exports both :results output :noweb strip-export
+    <<import_re>>
+    print(re.sub(
+        r'"(.+)"',
+        r"«\1»",
+        '"Идиот" "Бесы"'
+    ))
+  #+END_SRC
+
+  #+RESULTS:
+  : «Идиот" "Бесы»
+* Задача решена
+  #+BEGIN_SRC python :exports both :results output :noweb strip-export
+    <<import_re>>
+    print(re.sub(
+        r'"([^"]+)"',
+        r"«\1»",
+        '"Идиот" "Бесы"'
+    ))
+    print(re.sub(
+        r'"(\w+)"',
+        r"«\1»",
+        '"Идиот" "Бесы"'
+    ))
+  #+END_SRC
+
+  #+RESULTS:
+  : «Идиот» «Бесы»
+  : «Идиот» «Бесы»
+
 * Отладка RegExp
   __[[https://regexr.com/][RegeExer]]__
   __[[http://www.ex-parrot.com/~pdw/Mail-RFC822-Address.html][Как это отладить?!]]__
