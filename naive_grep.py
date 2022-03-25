@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-import sys
-import argparse
 def match(regexp: str, text: str) -> bool:
     # Добавим признак конца строки
     text += '\0'
@@ -35,6 +33,9 @@ def matchstar(c: str, regexp: str, text: str) -> bool:
         if matchhere(regexp, text[i:]):
             return True
     return False
+
+import sys
+import argparse
 
 parser = argparse.ArgumentParser(prog="grep")
 parser.add_argument(

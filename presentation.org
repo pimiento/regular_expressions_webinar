@@ -11,8 +11,105 @@
 #+LATEX_HEADER: \DefineVerbatimEnvironment{verbatim}{Verbatim}{fontsize=\scriptsize}
 #+LaTeX_HEADER: \lstset{basicstyle=\scriptsize\ttfamily}
 #+OPTIONS: \n:t ^:nil
-* Блобы
-* Простая реализация регулярок
+* Что такое регулярные выражения?
+  #+ATTR_LATEX: :width .47\textwidth
+  [[file:automata_theory.png]]
+* Варианты регулярок
+  [[file:re_variants.png]]
+  __[[https://www.pcre.org/current/doc/html/pcre2syntax.html][PCRE]]__
+* Библиотеки RegEx в Python
+  - __[[https://docs.python.org/3/library/re.html][стандартная]]__
+  - __[[https://github.com/mrabarnett/mrab-regex][regex]]__
+* Глобы
+  #+BEGIN_SRC shell :exports code
+    man 7 glob
+  #+END_SRC
+  #+BEGIN_SRC python :exports both :results output
+    import glob
+
+    print(glob.glob("*.py"))
+  #+END_SRC
+
+  #+RESULTS:
+  : ['naive_re.py', 'naive_grep.py']
+* grep
+  /g/<Regular Expression>/p/
+  #+BEGIN_SRC shell :results output :exports both
+    echo "g/def/p" | ed naive_re.py
+  #+END_SRC
+
+  #+RESULTS:
+  : 1234
+  : def match(regexp: str, text: str) -> bool:
+  : def matchhere(regexp: str, text: str) -> bool:
+  : def matchstar(c: str, regexp: str, text: str) -> bool:
+
+  #+NAME: grep_main
+  #+BEGIN_SRC python :exports none
+    import sys
+    import argparse
+
+    parser = argparse.ArgumentParser(prog="grep")
+    parser.add_argument(
+        "regexp",
+        metavar="regexp",
+        type=str,
+        help="Simplified regexp (^/./*/$)",
+    )
+    parser.add_argument(
+        "fname",
+        nargs="*",
+        metavar="file",
+        type=str,
+        help="Path to a file. Read from stdin when there is no file argument"
+    )
+
+
+    def grep(regexp: str, fd: object, name: str = None) -> bool:
+        nmatch = 0
+        for idx, line in enumerate(fd.readlines()):
+            if match(regexp, line.strip()):
+                nmatch += 1
+                if name is not None:
+                    print(f"{name}::{idx+1}: ", end='')
+                print(f"{line.strip()}")
+        return nmatch
+
+
+    def main() -> int:
+        args = parser.parse_args()
+        regexp = args.regexp
+        fnames = args.fname
+        nmatch = 0
+        if len(fnames) == 0:
+            if grep(regexp, sys.stdin):
+                nmatch += 1
+        else:
+            for fname in fnames:
+                try:
+                    with open(fname, "r") as fd:
+                        if grep(regexp, fd, fname):
+                            nmatch += 1
+                except (IOError, OSError) as e:
+                    print(e, file=sys.stderr)
+                    continue
+        return nmatch == 0
+
+
+    if __name__ == "__main__":
+        main()
+  #+END_SRC
+  #+BEGIN_SRC python :exports none  :tangle naive_grep.py :shebang "#!/usr/bin/env python3" :noweb strip-export
+  <<NaiveRE>>
+
+  <<grep_main>>
+  #+END_SRC
+  #+BEGIN_SRC shell :exports code :results output
+    ./naive_grep.py '^def .*(.*):$' \
+      ../praktikum_project_5/*/*.py \
+      | head -n 5
+  #+END_SRC
+* Наивная реализация регулярок
   #+NAME: NaiveRE
   #+BEGIN_SRC python :exports none
     def match(regexp: str, text: str) -> bool:
@@ -69,76 +166,218 @@
   : True
   : True
   : True
-* grep
-  #+BEGIN_SRC python :exports none :tangle naive_grep.py :shebang "#!/usr/bin/env python3" :noweb strip-export
-    import sys
-    import argparse
-    <<NaiveRE>>
 
-    parser = argparse.ArgumentParser(prog="grep")
-    parser.add_argument(
-        "regexp",
-        metavar="regexp",
-        type=str,
-        help="Simplified regexp (^/./*/$)",
-    )
-    parser.add_argument(
-        "fname",
-        nargs="*",
-        metavar="file",
-        type=str,
-        help="Path to a file. Read from stdin when there is no file argument"
-    )
+* Конечные Автоматы
+  #+ATTR_LATEX: :width .35\textwidth
+  [[file:dfa_matrix.png]]
+  #+ATTR_LATEX: :width 1.08\textwidth
+  [[file:dfa_flow.png]]
+* Поиск подстроки на DFA
+  #+NAME: DFA_search
+  #+BEGIN_SRC python :exports none
+    import numpy as np
 
 
-    def grep(regexp: str, fd: object, name: str = None) -> bool:
-        nmatch = 0
-        for idx, line in enumerate(fd.readlines()):
-            if match(regexp, line.strip()):
-                nmatch += 1
-                if name is not None:
-                    print(f"{name}::{idx+1}: ", end='')
-                print(f"{line.strip()}")
-        return nmatch
+    class KMP:
 
+        def __init__(self, pattern: str, R: int = 2**16):
+            self.R = R
+            self.pattern = pattern
+            self.M = len(pattern)
+            self.dfa = np.empty((R, self.M), dtype=np.int16)
+            self.dfa[ord(self.pattern[0])][0] = 1
+            X = 0
+            for j in range(1, self.M):
+                for c in range(R):
+                    # copy mismatch cases
+                    self.dfa[c][j] = self.dfa[c][X]
+                # set match case
+                self.dfa[ord(self.pattern[j])][j] = j+1
+                # update restart state
+                X = self.dfa[ord(self.pattern[j])][X]
 
-    def main() -> int:
-        args = parser.parse_args()
-        regexp = args.regexp
-        fnames = args.fname
-        nmatch = 0
-        if len(fnames) == 0:
-            if grep(regexp, sys.stdin):
-                nmatch += 1
-        else:
-            for fname in fnames:
-                try:
-                    with open(fname, "r") as fd:
-                        if grep(regexp, fd, fname):
-                            nmatch += 1
-                except (IOError, OSError) as e:
-                    print(e, file=sys.stderr)
-                    continue
-        return nmatch == 0
-
-
-    if __name__ == "__main__":
-        main()
+        def search(self, text: str) -> int:
+            N = len(text)
+            j = 0
+            for i in range(N):
+                if j >= self.M:
+                    break
+                j = self.dfa[ord(text[i])][j]
+            if j == self.M:
+                # found
+                return i - self.M
+            # not found
+            return -1
   #+END_SRC
-  #+BEGIN_SRC shell :exports both :results output
-    ./naive_grep.py '^def .*(.*):$' ../praktikum_project_5/*/*.py \
-        | head -n 5
+
+  #+BEGIN_SRC python :exports both :results output :noweb strip-export  :tangle "automaton_kmp.py" :shebang "#!/usr/bin/env python3"
+    <<DFA_search>>
+
+    kmp1 = KMP("abc")
+    print(kmp1.search("abcd"))
+    print(kmp1.search("fooabcd"))
+    print(kmp1.search("foobar"))
   #+END_SRC
 
   #+RESULTS:
-  : ../praktikum_project_5/posts/models.py::21: def __str__(self):
-  : ../praktikum_project_5/posts/models.py::54: def __str__(self):
-  : ../praktikum_project_5/posts/views.py::11: def index(request):
-  : ../praktikum_project_5/posts/views.py::33: def group_posts(request, slug):
-  : ../praktikum_project_5/posts/views.py::56: def new_post(request):
-* Конечные Автоматы
-* Язык RE
+  : 0
+  : 3
+  : -1
+
 * Реализация RegExp на конечных автоматах
-* Библиотеки для RegExp
+  __[[https://github.com/avli/nfa-regex][для особо пытливых]]__
+
+* Примеры использования RE
+  #+BEGIN_EXAMPLE
+  Задача: написать регулярку, проверяющую,
+  что в строке корректный email адрес
+  #+END_EXAMPLE
+
+* Задача решена
+  #+NAME: import_re
+  #+BEGIN_SRC python :exports none
+  import re
+  #+END_SRC
+
+  #+BEGIN_SRC python :exports both :results output :noweb strip-export
+    <<import_re>>
+    print(re.search(
+        r"\w+@\w+\.\w+",
+        "example@gmail.com"
+    )[0])
+    print(re.search(
+        r"\w[\w_.]+@\w+\.\w+",
+        "example.1.2.3@gmail.com"
+    )[0])
+  #+END_SRC
+
+  #+RESULTS:
+  : example@gmail.com
+  : example.1.2.3@gmail.com
+
+* Задача решена?
+  #+BEGIN_SRC python :exports both :results output :noweb strip-export
+    <<import_re>>
+
+    print(re.search(
+        r"\w+@\w+\.\w+",
+        "example@foo.gmail.com"
+    )[0])
+    print(re.search(
+        r"\w[\w_.]+@\w+\.\w+",
+        "example.1.2.3@foo.gmail.com"
+    )[0])
+  #+END_SRC
+
+  #+RESULTS:
+  : example@foo.gmail
+  : example.1.2.3@foo.gmail
+
+* Задача решена
+  #+BEGIN_SRC python :exports both :results output :noweb strip-export
+    <<import_re>>
+    rg = re.compile(
+      r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+"
+      r"(?:\.[a-zA-Z0-9-]+)+$"
+    )
+
+    print(re.match(
+        rg, "example@foo.gmail.com"
+    )[0])
+    print(re.match(
+        rg, "example.1.2.3@foo.gmail.com"
+    )[0])
+  #+END_SRC
+
+  #+RESULTS:
+  : example@foo.gmail.com
+  : example.1.2.3@foo.gmail.com
+
+* Опережающие и ретроспективные проверки
+  #+BEGIN_EXAMPLE
+  Задача: заменить переводы строк на <br/>,
+  за исключением случая, если перед этим шел html-тэг
+  #+END_EXAMPLE
+
+* Задача решена
+  #+BEGIN_SRC python :exports both :results output
+    import re
+
+    print(re.sub(
+        r"([^>])\n",
+        r"\1<br\\>",
+        "<p>Привет\nдрузья</p>"
+    ))
+  #+END_SRC
+
+  #+RESULTS:
+  : <p>Привет<br\>друзья</p>
+
+* Задача решена?
+  #+BEGIN_SRC python :exports both :results output
+    import re
+
+    print(re.sub(
+        r"([^>])\n",
+        r"\1<br\>",
+        "<p>Привет\n\nдрузья</p>"
+    ))
+  #+END_SRC
+
+  #+RESULTS:
+  : <p>Привет<br\>
+  : друзья</p>
+
+* Задача решена!
+  #+BEGIN_SRC python :exports both :results output
+    import re
+
+    print(re.sub(
+        r"(?<=[^>])\n",
+        r"<br\>",
+        "<p>Привет\n\nдрузья</p>"
+    ))
+  #+END_SRC
+
+  #+RESULTS:
+  : <p>Привет<br\><br\>друзья</p>
+
+* lookahead & lookbehind
+  - (?<=...) :: Должно совпасть слева (Позитивная ретроспективная проверка).
+  - (?<!...) :: Не должно совпасть слева (Негативная ретроспективная проверка).
+  - (?=...) :: Должно совпасть справа (Позитивная опережающая проверка).
+  - (?!...) :: Не должно совпасть справа (Негативная опережающая проверка).
 * Отладка RegExp
+  __[[https://regexr.com/][RegeExer]]__
+  __[[http://www.ex-parrot.com/~pdw/Mail-RFC822-Address.html][Как это отладить?!]]__
 * Практика
+  #+CAPTION: задача 1
+  #+BEGIN_EXAMPLE
+  Задача: преобразовать все ссылки в тексте в
+  html-тэги <a href=[url]>url</a>
+  #+END_EXAMPLE
+* Практика
+  #+CAPTION: задача 2
+  #+BEGIN_EXAMPLE
+  Задача: является ли текст числом
+  (в том числе, дробным)?
+  #+END_EXAMPLE
+* Практика
+  #+CAPTION: задача 3
+  #+BEGIN_EXAMPLE
+  Задача: поставить пробелы после запятых,
+  если их там нет.
+  #+END_EXAMPLE
+* Практика
+  #+CAPTION: задача 4
+  #+BEGIN_EXAMPLE
+  Задача: заменить идущие подряд знаки ,.!? на один
+  #+END_EXAMPLE
+* Литература
+  - __[[https://docs.python.org/3/library/re.html][import re]]__
+  - __[[https://docs-python.ru/tutorial/ispolzovanie-reguljarnyh-vyrazhenij-python/operezhajuschaja-retrospektivnaja-proverka-pozitsii-regexp/][lookahead & lookbehind]]__
+  - __[[https://habr.com/ru/post/349860/?ysclid=l15brkrx4y][хорошая статья]]__
+  - __[[https://www.labirint.ru/books/518955/][Практика программирования]]__
+  - __[[https://www.labirint.ru/books/647977/][Регулярные выражения]]__
+  - __[[https://swtch.com/~rsc/regexp/regexp1.html][NFA & RE]]__
+  - __[[https://www.labirint.ru/books/512969/][Алгоритмы]]__
